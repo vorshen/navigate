@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>navigate</title>
+    <style>
+        .wrap {
+            width: 800px;
+            height: 600px;
+            border: 1px solid black;
+            margin: 30px auto;
+            position: relative;
+        }
+        .buttons {
+            position: absolute;
+            top: 30px;
+            left: 20px;
+        }
+        .button {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: 2px 2px 2px 1px black;
+            cursor: pointer;
+        }
+        .active {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: -1px -1px 1px 1px grey;
+            cursor: pointer;
+        }
+        #navigate:active {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: -1px -1px 1px 1px grey;
+            cursor: pointer;
+        }
+        .start-point {
+            width: 16px;
+            height: 16px;
+            position: absolute;
+            border-radius: 50%;
+            background-color: red;
+            left: 30px;
+            top: 30px;
+            cursor: move;
+        }
+        .end-point {
+            width: 16px;
+            height: 16px;
+            position: absolute;
+            border-radius: 50%;
+            background-color: blue;
+            left: 600px;
+            top: 400px;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrap" class="wrap">
+        <canvas id="c" width="800" height="600"></canvas>
+        <div id="start" class="start-point"></div>
+        <div id="end" class="end-point"></div>
+    </div>
+    <div class="buttons">
+        <div id="draw" class="button">画障碍物</div>
+        <div id="navigate" class="button">开始寻路</div>
+    </div>
+
+    <script>
+        var wrap = document.getElementById('wrap');
+        var drawObs = document.getElementById('draw');
+        var navigate = document.getElementById('navigate');
+        var door = 0;
+        var oC = document.getElementById('c');
+        var ctx = oC.getContext('2d');
+        var offsetX = wrap.offsetLeft;
+        var offsetY = wrap.offsetTop;
+        var obstacles = [];
+
+        var globalPath = [];
+
+        var start = {
+            x: 38,
+            y: 38,
+            index: 0
+        };
+
+        var end = {
+            x: 608,
+            y: 408,
+            index: 1
+        };
+
+        var currStart = start,
+            currEnd = end;
+
+        var result;
+        var k;
+        var nextStart;
+        var nextEnd;
+        var x1;
+        var y1;
+        var x2;
+        var y2;
+        
+        init();
+
+        function init() {
+            initEvent();
+        }
+
+        function initEvent() {
+            drawObs.onclick = function() {
+                if(door === 0) {
+                    drawObsDown();
+                } else {
+                    drawObsUp();
+                }
+            };
+
+            document.oncontextmenu = function() {
+                drawObsUp();
+                return false;
+            };
+
+            oC.onclick = function(e) {
+                if(!door) {
+                    return ;
+                }
+
+                var left = e.clientX - offsetX;
+                var top = e.clientY - offsetY;
+                var tmp = {
+                    x: left,
+                    y: top,
+                    r: 3
+                };
+                obstacles.push(tmp);
+                drawLine(obstacles);
+            };
+
+            navigate.onclick = function() {
+                drawRole(start, end);
+                check(start, end, obstacles);
+                drawPath(globalPath);
+            };
+        }
+
+        function drawObsDown() {
+            door = 1;
+            drawObs.className = 'active';
+        }
+
+        function drawObsUp() {
+            door = 0;
+            drawObs.className = 'button';
+
+            if(obstacles.length > 0) {
+                fillObstacles();
+                obstacles[obstacles.length] = obstacles[0];
+            }
+        }
+
+        function Drag(elem, map) {
+            this.elem = elem;
+            this.map = map;
+            this.init();
+        }
+
+        Drag.prototype.init = function() {
+            var self = this;
+            this.elem.onmousedown = function(ev) {
+                ev.preventDefault();
+                self.x = ev.clientX - this.offsetLeft;
+                self.y = ev.clientY - this.offsetTop;
+
+                document.onmousemove = function(ev) {
+                    var left = ev.clientX - self.x;
+                    var top = ev.clientY - self.y;
+
+                    if(left < 0) {
+                        left = 0;
+                    } else if(left > 784) {
+                        left = 784;
+                    }
+
+                    if(top < 0) {
+                        top = 0;
+                    } else if(top > 584) {
+                        top = 584;
+                    }
+
+                    self.elem.style.left = left + 'px';
+                    self.elem.style.top = top + 'px';
+                };
+
+                document.onmouseup = function() {
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+                    self.map.x = parseInt(self.elem.style.left) + 8;
+                    self.map.y = parseInt(self.elem.style.top) + 8;
+                };
+            };
+
+        };
+
+        new Drag(document.getElementById('start'), start);
+        new Drag(document.getElementById('end'), end);
+    </script>
+
+    <script>
+        globalPath.push(start);
+        globalPath.push(end);
+
+        function drawStart(point) {
+            drawCircle(point, 'red');
+        }
+
+        function drawEnd(point) {
+            drawCircle(point, 'blue');
+        }
+
+        function drawCircle(point, color) {
+            var r = 8;
+            if(typeof point.r !== 'undefined') {
+                r = point.r;
+            }
+            ctx.beginPath();
+            ctx.fillStyle = color;
+            ctx.arc(point.x, point.y, r, 0, Math.PI * 2, false);
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawLine(args) {
+            // ctx.clearRect(0, 0, oC.width, oC.height);
+
+            for(var i = 0; i < args.length; i++) {
+                drawCircle(args[i], 'black');
+            }
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'black';
+            ctx.moveTo(args[0].x, args[0].y);
+            for(i = 1; i < args.length; i++) {
+                ctx.lineTo(args[i].x, args[i].y);
+            }
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function fillObstacles() {
+            ctx.clearRect(0, 0, oC.width, oC.height);
+            ctx.beginPath();
+            ctx.fillStyle = 'black';
+            ctx.moveTo(obstacles[0].x, obstacles[0].y);
+            for(i = 1; i < obstacles.length; i++) {
+                ctx.lineTo(obstacles[i].x, obstacles[i].y);
+            }
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawRole(start, end) {
+            drawStart(start);
+            drawEnd(end);
+            drawLine([start, end]);
+        }
+
+        function determinant(a, b, c, d) {
+            return (a * d - b * c);
+        }
+
+        function isLineCross(a1, a2, b1, b2) {
+            var delta = determinant(a2.x - a1.x, b1.x - b2.x, a2.y - a1.y, b1.y - b2.y);
+            if(delta <= (1e-6) && delta >= -(1e-6)) {
+                return false;
+            }
+            var namenda = determinant(b1.x - a1.x, b1.x - b2.x, b1.y - a1.y, b1.y - b2.y) / delta;
+            if(namenda > 1 || namenda < 0) {
+                return false;
+            }
+
+            var miu = determinant(a2.x - a1.x, b1.x - a1.x, a2.y - a1.y, b1.y - a1.y) / delta;
+            if(miu > 1 || miu < 0) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function drawObstacle(args) {
+            ctx.beginPath();
+            ctx.fillStyle = 'black';
+            ctx.moveTo(args[0].x, args[0].y);
+            for(var i = 1; i < args.length - 1; i++) {
+                ctx.lineTo(args[i].x, args[i].y);
+            }
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function check(start, end, obstacles) {
+            var isCollision = true;
+            var dir = 0;
+            isBodyCross(start, end, obstacles);
+
+            function isBodyCross(currStart, currEnd, obstacles) {
+                var unit = 50;
+                var index = 0;
+                var changeX = 0;
+                var changeY = 0;
+                var door1 = true;
+                var door2 = true;
+
+                k = (currEnd.y - currStart.y) / (currEnd.x - currStart.x);
+                if(Math.abs(k) > 1) { // 变动x
+                    changeX = 10;
+                } else { // 变动y
+                    changeY = 10;
+                }
+                while(isCollision) {
+                    if(index > 1000) {
+                        alert('Error');
+                        return ; 
+                    }
+                    // 开始某个方向的寻路
+                    door1 = true;
+                    nextStart = {
+                        x: currStart.x + changeX * index,
+                        y: currStart.y + changeY * index
+                    };
+                    nextEnd = {
+                        x: currEnd.x + changeX * index,
+                        y: currEnd.y + changeY * index
+                    };
+                    for(var i = 0; i < obstacles.length - 1; i++) {
+                        result = isLineCross(nextStart, nextEnd, obstacles[i], obstacles[i + 1]);
+                        if(result) {
+                            x1 = obstacles[i];
+                            y1 = obstacles[i + 1];
+                            door1 = false;
+                            drawRole(nextStart, nextEnd);
+                            break;
+                        }
+                    }
+                    if(door1) { // 没有阻碍
+                        dir = 1;
+                        isCollision = false;
+                        break;
+                    }
+
+                    door2 = true;
+                    nextStart = {
+                        x: currStart.x - (changeX * index),
+                        y: currStart.y - (changeY * index)
+                    };
+                    nextEnd = {
+                        x: currEnd.x - (changeX * index),
+                        y: currEnd.y - (changeY * index)
+                    };
+                    for(i = 0; i < obstacles.length - 1; i++) {
+                        result = isLineCross(nextStart, nextEnd, obstacles[i], obstacles[i + 1]);
+                        if(result) {
+                            x2 = obstacles[i];
+                            y2 = obstacles[i + 1];
+                            door2 = false;
+                            drawRole(nextStart, nextEnd);
+                            break;
+                        }
+                    }
+                    if(i === obstacles.length - 1) {
+                        dir = -1;
+                        isCollision = false;
+                        break;
+                    }
+
+                    index++;
+                }
+
+                if(door1 || door2) {
+                    fixPoint(changeX, changeY);
+                }
+            }
+            
+
+            function fixPoint(changeX, changeY) {
+                var dis1;
+                var dis2;
+                var f;
+                var x, y;
+
+                if(dir === 1) {
+                    x = x1;
+                    y = y1;
+                } else {
+                    x = x2;
+                    y = y2;
+                }
+
+                if(typeof x === 'undefined') {
+                    return ;
+                }
+
+                drawRole(nextStart, nextEnd);
+
+                dis1 = distance(x, nextStart, nextEnd);
+                dis2 = distance(y, nextStart, nextEnd);
+
+                if(dis1 < dis2) {
+                    f = {
+                        x: x.x + (changeX * dir),
+                        y: x.y + (changeY * dir)
+                    };
+                    drawEnd(f);
+                } else {
+                    f = {
+                        x: y.x + (changeX * dir),
+                        y: y.y + (changeY * dir)
+                    };
+                    drawEnd(f);
+                }
+
+                f.index = end.index;
+                globalPath.splice(f.index, 0, f);
+                for(var i = 0; i < globalPath.length; i++) {
+                    globalPath[i].index = i;
+                }
+
+                x1 = undefined;
+                y1 = undefined;
+                x2 = undefined;
+                y2 = undefined;
+
+                check(start, f, obstacles);
+                check(f, end, obstacles);
+            }
+
+        }
+
+        function distance(point, a, b) {
+            var dis1 = (a.x - point.x) * (a.x - point.x) + (a.y - point.y) * (a.y - point.y);
+            var dis2 = (b.x - point.x) * (b.x - point.x) + (b.y - point.y) * (b.y - point.y);
+
+            return dis1 + dis2;
+        }
+
+        function drawPath(args) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'blue';
+            ctx.moveTo(args[0].x, args[0].y);
+            for(var i = 1; i < args.length; i++) {
+                ctx.lineTo(args[i].x, args[i].y);
+            }
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+    </script>
+
+    <script>
+        /*function isBodyCross(currStart, currEnd, obstacles, unit, sign) {
+            for(var i = 0; i < obstacles.length - 1; i++) {
+                result = isLineCross(currStart, currEnd, obstacles[i], obstacles[i + 1]);
+                if(result) {
+                    x = obstacles[i];
+                    y = obstacles[i + 1];
+                    k = (currEnd.y - currStart.y) / (currEnd.x - currStart.x);
+
+                        nextStart = {
+                            x: currStart.x,
+                            y: currStart.y + unit
+                        };
+                        nextEnd = {
+                            x: currEnd.x,
+                            y: currEnd.y + unit
+                        };
+
+                    drawRole(nextStart, nextEnd);
+
+                    isBodyCross(nextStart, nextEnd, obstacles);
+                    return ;
+                }
+            }
+            if(typeof x !== 'undefined') {
+                fixPoint();
+            }
+        }*/
+    </script>
+</body>
+</html>
