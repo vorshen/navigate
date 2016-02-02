@@ -71,12 +71,14 @@
     <div class="buttons">
         <div id="draw" class="button">画障碍物</div>
         <div id="navigate" class="button">开始寻路</div>
+        <div id="debug" class="button">开启debug</div>
     </div>
 
     <script>
         var wrap = document.getElementById('wrap');
         var drawObs = document.getElementById('draw');
         var navigate = document.getElementById('navigate');
+        var debug = document.getElementById('debug');
         var door = 0;
         var oC = document.getElementById('c');
         var ctx = oC.getContext('2d');
@@ -101,8 +103,10 @@
         var currStart = start,
             currEnd = end;
 
+        var isDebug = false;
         var result;
         var k;
+        var kk;
         var nextStart;
         var nextEnd;
         var x1;
@@ -147,9 +151,13 @@
             };
 
             navigate.onclick = function() {
-                drawRole(start, end);
                 check(start, end, obstacles);
                 drawPath(globalPath);
+            };
+
+            debug.onclick = function() {
+                isDebug = true;
+                debug.className = 'active';
             };
         }
 
@@ -269,6 +277,9 @@
         }
 
         function drawRole(start, end) {
+            if(!isDebug) {
+                return ;
+            }
             drawStart(start);
             drawEnd(end);
             drawLine([start, end]);
@@ -321,9 +332,13 @@
                 var door2 = true;
 
                 k = (currEnd.y - currStart.y) / (currEnd.x - currStart.x);
+                kk = -1  / k;
+
                 if(Math.abs(k) > 1) { // 变动x
                     changeX = 10;
+                    changeY = 10 * kk;
                 } else { // 变动y
+                    changeX = 10 / kk;
                     changeY = 10;
                 }
                 while(isCollision) {
@@ -409,7 +424,7 @@
                     return ;
                 }
 
-                drawRole(nextStart, nextEnd);
+                // drawRole(nextStart, nextEnd);
 
                 dis1 = distance(x, nextStart, nextEnd);
                 dis2 = distance(y, nextStart, nextEnd);
@@ -419,13 +434,13 @@
                         x: x.x + (changeX * dir),
                         y: x.y + (changeY * dir)
                     };
-                    drawEnd(f);
+                    drawCircle(f, 'green');
                 } else {
                     f = {
                         x: y.x + (changeX * dir),
                         y: y.y + (changeY * dir)
                     };
-                    drawEnd(f);
+                    drawCircle(f, 'green');
                 }
 
                 f.index = end.index;
