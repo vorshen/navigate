@@ -113,6 +113,7 @@
         var y1;
         var x2;
         var y2;
+        var limit;
         
         init();
 
@@ -151,7 +152,33 @@
             };
 
             navigate.onclick = function() {
-                check(start, end, obstacles);
+                // 首先判断起点终点是不是在障碍物内
+                var outPoint = getPointOutside(obstacles);
+
+                if(isInObstacles(outPoint, start, obstacles)) {
+                    alert('fuck');
+                    return ;
+                }
+                if(isInObstacles(outPoint, end, obstacles)) {
+                    alert('fuck');
+                    return ;
+                }
+
+                globalPath.push(start);
+                globalPath.push(end);
+
+                k = (end.y - start.y) / (end.x - start.x);
+                kk = -1  / k;
+
+                // 判断起点终点是否在障碍物的AABB内
+                limit = getAABB(obstacles);
+                var currStart = redressPoint(start, end, limit);
+                var currEnd = redressPoint(end, start, limit);
+                
+                // drawCircle(currStart, 'yellow');
+                // drawCircle(currEnd, 'yellow');
+
+                check(currStart, currEnd, obstacles);
                 drawPath(globalPath);
             };
 
@@ -174,6 +201,47 @@
                 fillObstacles();
                 obstacles[obstacles.length] = obstacles[0];
             }
+        }
+
+        function redressPoint(aPoint, bPoint, limit) {
+            var tmpX;
+            var tmpY;
+            var tmpPoint;
+            if(isInAABB(aPoint, limit)) {
+                if(bPoint.x > aPoint.x) {
+                    tmpX = limit.minX;
+                    tmpY = aPoint.y - (aPoint.x - tmpX) * k;
+                } else {
+                    tmpX = limit.maxX;
+                    tmpY = aPoint.y - (aPoint.x - tmpX) * k;
+                }
+                tmpPoint = {
+                    x: tmpX,
+                    y: tmpY
+                };
+
+                if(tmpY < limit.maxY && tmpY > limit.minY) {
+                    if(bPoint.y > aPoint.y) {
+                        tmpY = limit.minY;
+                        tmpX = aPoint.x - (aPoint.y - tmpY) / k;
+                    } else {
+                        tmpY = limit.maxY;
+                        tmpX = aPoint.x - (aPoint.y - tmpY) / k;
+                    }
+
+                    tmpPoint = {
+                        x: tmpX,
+                        y: tmpY
+                    };
+                }
+            } else {
+                tmpPoint = aPoint;
+            }
+
+            if(isDebug) {
+                drawCircle(tmpPoint, 'yellow');
+            }
+            return tmpPoint;
         }
 
         function Drag(elem, map) {
@@ -224,9 +292,6 @@
     </script>
 
     <script>
-        globalPath.push(start);
-        globalPath.push(end);
-
         function drawStart(point) {
             drawCircle(point, 'red');
         }
@@ -248,8 +313,6 @@
         }
 
         function drawLine(args) {
-            // ctx.clearRect(0, 0, oC.width, oC.height);
-
             for(var i = 0; i < args.length; i++) {
                 drawCircle(args[i], 'black');
             }
@@ -276,6 +339,33 @@
             ctx.closePath();
         }
 
+        function isInObstacles(start, end, obstacles) {
+            var index = 0;
+            var result;
+            for(var i = 0; i < obstacles.length - 1; i++) {
+                result = isLineCross(start, end, obstacles[i], obstacles[i + 1]);
+                if(result) {
+                    index++;
+                }
+            }
+
+            index = index % 2;
+
+            if(index === 0) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        function isInAABB(point, limit) {
+            if(point.x > limit.minX && point.x < limit.maxX && point.y > limit.minY && point.y < limit.maxY) {
+                return true;
+            }
+
+            return false;
+        }
+
         function drawRole(start, end) {
             if(!isDebug) {
                 return ;
@@ -288,8 +378,11 @@
         function determinant(a, b, c, d) {
             return (a * d - b * c);
         }
-
+        var globalIndex = 0;
         function isLineCross(a1, a2, b1, b2) {
+            if(globalIndex++ > 1000) {
+                throw 'to much times';
+            }
             var delta = determinant(a2.x - a1.x, b1.x - b2.x, a2.y - a1.y, b1.y - b2.y);
             if(delta <= (1e-6) && delta >= -(1e-6)) {
                 return false;
@@ -321,6 +414,7 @@
         function check(start, end, obstacles) {
             var isCollision = true;
             var dir = 0;
+
             isBodyCross(start, end, obstacles);
 
             function isBodyCross(currStart, currEnd, obstacles) {
@@ -334,10 +428,10 @@
                 k = (currEnd.y - currStart.y) / (currEnd.x - currStart.x);
                 kk = -1  / k;
 
-                if(Math.abs(k) > 1) { // 变动x
+                if(Math.abs(k) > 1) { // 以x为单位的变动
                     changeX = 10;
                     changeY = 10 * kk;
-                } else { // 变动y
+                } else { // 以y为单位的变动
                     changeX = 10 / kk;
                     changeY = 10;
                 }
@@ -424,23 +518,48 @@
                     return ;
                 }
 
-                // drawRole(nextStart, nextEnd);
-
                 dis1 = distance(x, nextStart, nextEnd);
                 dis2 = distance(y, nextStart, nextEnd);
-
+                /*drawCircle(x, 'yellow');
+                drawCircle(y, 'pink');*/
+                console.log(dir);
+                console.log(x, y);
+                console.log(dis1, dis2);
+                console.log(changeX, changeY);
+                var symbolX;
+                var symbolY;
                 if(dis1 < dis2) {
+                    if(x.y > y.y) {
+                        symbolY = 1;
+                    } else {
+                        symbolY = -1;
+                    }
+                    if(x.x > y.x) {
+                        symbolX = 1;
+                    } else {
+                        symbolX = -1;
+                    }
                     f = {
-                        x: x.x + (changeX * dir),
-                        y: x.y + (changeY * dir)
+                        x: x.x + (5 * symbolX),
+                        y: x.y + (5 * symbolY)
                     };
                     drawCircle(f, 'green');
                 } else {
+                    if(y.y > x.y) {
+                        symbolY = 1;
+                    } else {
+                        symbolY = -1;
+                    }
+                    if(y.x > x.x) {
+                        symbolX = 1;
+                    } else {
+                        symbolX = -1;
+                    }
                     f = {
-                        x: y.x + (changeX * dir),
-                        y: y.y + (changeY * dir)
+                        x: y.x + (5 * symbolX),
+                        y: y.y + (5 * symbolY)
                     };
-                    drawCircle(f, 'green');
+                    drawCircle(f, 'pink');
                 }
 
                 f.index = end.index;
@@ -454,13 +573,28 @@
                 x2 = undefined;
                 y2 = undefined;
 
-                check(start, f, obstacles);
-                check(f, end, obstacles);
+                var tmp = redressPoint(globalPath[f.index - 1], f, limit);
+                check(tmp, f, obstacles);
+                tmp = redressPoint(globalPath[f.index + 1], f, limit);
+                check(f, tmp, obstacles);
             }
 
         }
 
         function distance(point, a, b) {
+            if(a.x < 0) {
+                a.x = 0;
+            }
+            if(a.y < 0) {
+                a.y = 0;
+            }
+
+            if(b.x < 0) {
+                b.x = 0;
+            }
+            if(b.y < 0) {
+                b.y = 0;
+            }
             var dis1 = (a.x - point.x) * (a.x - point.x) + (a.y - point.y) * (a.y - point.y);
             var dis2 = (b.x - point.x) * (b.x - point.x) + (b.y - point.y) * (b.y - point.y);
 
@@ -478,36 +612,50 @@
             ctx.closePath();
         }
 
-    </script>
-
-    <script>
-        /*function isBodyCross(currStart, currEnd, obstacles, unit, sign) {
-            for(var i = 0; i < obstacles.length - 1; i++) {
-                result = isLineCross(currStart, currEnd, obstacles[i], obstacles[i + 1]);
-                if(result) {
-                    x = obstacles[i];
-                    y = obstacles[i + 1];
-                    k = (currEnd.y - currStart.y) / (currEnd.x - currStart.x);
-
-                        nextStart = {
-                            x: currStart.x,
-                            y: currStart.y + unit
-                        };
-                        nextEnd = {
-                            x: currEnd.x,
-                            y: currEnd.y + unit
-                        };
-
-                    drawRole(nextStart, nextEnd);
-
-                    isBodyCross(nextStart, nextEnd, obstacles);
-                    return ;
+        function getPointOutside(args) {
+            var y = args[0].y;
+            var x = args[0].x;
+            for(var i = 1; i < args.length; i++) {
+                if(args[i].y > y) {
+                    y = args[i].y;
+                    x = args[i].x;
                 }
             }
-            if(typeof x !== 'undefined') {
-                fixPoint();
+
+            return {
+                x: x,
+                y: y + 10
+            };
+        }
+
+        function getAABB(args) {
+            var minX = args[0].x;
+            var maxX = args[0].x;
+            var minY = args[0].y;
+            var maxY = args[0].y;
+
+            for(var i = 1; i < args.length; i++) {
+                if(args[i].x < minX) {
+                    minX = args[i].x;
+                }
+                if(args[i].x > maxX) {
+                    maxX = args[i].x;
+                }
+                if(args[i].y < minY) {
+                    minY = args[i].y;
+                }
+                if(args[i].y > maxY) {
+                    maxY = args[i].y;
+                }
             }
-        }*/
+            return {
+                minX: minX,
+                maxX: maxX,
+                minY: minY,
+                maxY: maxY
+            };
+        }
+
     </script>
 </body>
 </html>
