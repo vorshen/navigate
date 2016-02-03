@@ -3,8 +3,506 @@
 <head>
     <meta charset="UTF-8">
     <title>navigate2.0</title>
+    <style>
+        .wrap {
+            width: 800px;
+            height: 600px;
+            border: 1px solid black;
+            margin: 30px auto;
+            position: relative;
+        }
+        .buttons {
+            position: absolute;
+            top: 30px;
+            left: 20px;
+        }
+        .button {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: 2px 2px 2px 1px black;
+            cursor: pointer;
+        }
+        .active {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: -1px -1px 1px 1px grey;
+            cursor: pointer;
+        }
+        #navigate:active {
+            padding: 10px 15px;
+            border: 2px solid black;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: -1px -1px 1px 1px grey;
+            cursor: pointer;
+        }
+        .start-point {
+            width: 16px;
+            height: 16px;
+            position: absolute;
+            border-radius: 50%;
+            background-color: red;
+            left: 30px;
+            top: 30px;
+            cursor: move;
+        }
+        .end-point {
+            width: 16px;
+            height: 16px;
+            position: absolute;
+            border-radius: 50%;
+            background-color: blue;
+            left: 600px;
+            top: 400px;
+            cursor: move;
+        }
+    </style>
 </head>
 <body>
-    
+    <div id="wrap" class="wrap">
+        <canvas id="c" width="800" height="600"></canvas>
+        <div id="start" class="start-point"></div>
+        <div id="end" class="end-point"></div>
+    </div>
+    <div class="buttons">
+        <div id="draw" class="button">画障碍物</div>
+        <div id="navigate" class="button">开始寻路</div>
+        <div id="debug" class="button">开启debug</div>
+    </div>
+
+    <script>
+        var wrap = document.getElementById('wrap');
+        var drawObs = document.getElementById('draw');
+        var navigate = document.getElementById('navigate');
+        var debug = document.getElementById('debug');
+        var oC = document.getElementById('c');
+        var ctx = oC.getContext('2d');
+        var offsetX = wrap.offsetLeft;
+        var offsetY = wrap.offsetTop;
+        var obstacles = [];
+
+        var globalPath = [];
+        var globalTimes = 0;
+        var globalObsIndex = 0;
+
+        var isDebug = false;
+        var door = 0;
+
+        var start = {
+            x: 38,
+            y: 38,
+            index: 0
+        };
+
+        var end = {
+            x: 608,
+            y: 408,
+            index: 1
+        };
+
+        function init() {
+            initEvent();
+        }
+
+        function initEvent() {
+            drawObs.onclick = function() {
+                if(door === 0) {
+                    drawObsDown();
+                } else {
+                    drawObsUp();
+                }
+            };
+
+            document.oncontextmenu = function() {
+                drawObsUp();
+                return false;
+            };
+
+            oC.onclick = function(e) {
+                if(!door) {
+                    return ;
+                }
+
+                var left = e.clientX - offsetX;
+                var top = e.clientY - offsetY;
+                var tmp = {
+                    x: left,
+                    y: top,
+                    r: 3,
+                    index: globalObsIndex++
+                };
+                obstacles.push(tmp);
+                drawLine(obstacles);
+            };
+
+            navigate.onclick = function() {
+                globalPath.push(start);
+                globalPath.push(end);
+
+                check();
+            };
+
+            debug.onclick = function() {
+                isDebug = true;
+                debug.className = 'active';
+            };
+        }
+
+        function check() {
+            // 首先判断起点和终点是否在障碍物内部
+            var outPoint = getPointOutside(obstacles);
+            var path = Object.create(null);
+            path.length = 0;
+            var aToPoints = Object.create(null);
+            var bToPoints = Object.create(null);
+            var tmp;
+            var tmpIndex;
+
+            if(isInObstacles(outPoint, start, obstacles)) {
+                alert('fuck');
+                return ;
+            }
+            if(isInObstacles(outPoint, end, obstacles)) {
+                alert('fuck');
+                return ;
+            }
+
+            for(var i = 0; i < obstacles.length - 1; i++) {
+                tmp = obstacles[i];
+                tmpIndex = tmp.index;
+                var aDoor = true;
+                var bDoor = true;
+                for(var j = 0; j < obstacles.length - 1; j++) {
+                    if(tmpIndex === obstacles[j].index || tmpIndex === obstacles[j + 1].index) {
+                        continue;
+                    }
+                    if(aDoor) {
+                        if(isLineCross(start, tmp, obstacles[j], obstacles[j + 1])) {
+                            aDoor = false;
+                        }
+                    }
+                    if(bDoor) {
+                        if(isLineCross(end, tmp, obstacles[j], obstacles[j + 1])) {
+                            bDoor = false;
+                        }
+                    }
+                    if(!aDoor && !bDoor) {
+                        break;
+                    }
+                }
+
+                if(aDoor) {
+                    aToPoints[tmp.index] = tmp;
+                }
+                if(bDoor) {
+                    bToPoints[tmp.index] = tmp;
+                }
+            }
+
+            /*console.log(aToPoints);
+            console.log(bToPoints);*/
+
+            for(i in aToPoints) {
+                drawCircle(aToPoints[i], 'green');
+            }
+
+            for(i in bToPoints) {
+                drawCircle(bToPoints[i], 'yellow');
+            }
+
+            // TODO 这里的主计算点最好不在障碍的AABB内
+            for(var a in aToPoints) {
+                if(typeof bToPoints[a] !== 'undefined') { // 有相同点存在
+                    path[a] = [start, aToPoints[a], end];
+                    path.length++;
+                    drawPath(path[a]);
+                    delete aToPoints[a];
+                    delete bToPoints[a];
+                }
+            }
+            for(a in aToPoints) {
+                // 和b的直连点能否直连
+                for(var b in bToPoints) {
+                    var door = true;
+
+                    if((Math.abs(a - b) === 1) || (a == 0 && b == obstacles.length - 2)) {
+                        path[a + b] = [start, aToPoints[a], bToPoints[b], end];
+                        path.length++;
+                        continue;
+                    }
+                    for(var k = 0; k < obstacles.length - 1; k++) {
+                        if(isLineCross(aToPoints[a], bToPoints[b], obstacles[k], obstacles[k + 1])) {
+                            door = false;
+                            break;
+                        }
+                    }
+                    if(door) {
+                        path[a + b] = [start, aToPoints[a], bToPoints[b], end];
+                        path.length++;
+                    }
+                }
+            }
+
+            if(path.length === 0) {
+                alert(1);
+            } else {
+                console.log(path);
+                for(var attr in path) {
+                    if(attr !== 'length') {
+                        drawPath(path[attr]);
+                    }
+                }
+            }
+        }
+
+        function drawObsDown() {
+            door = 1;
+            drawObs.className = 'active';
+        }
+
+        function drawObsUp() {
+            door = 0;
+            drawObs.className = 'button';
+
+            if(obstacles.length > 0) {
+                fillObstacles();
+                obstacles[obstacles.length] = obstacles[0];
+            }
+        }
+
+        function Drag(elem, map) {
+            this.elem = elem;
+            this.map = map;
+            this.init();
+        }
+
+        Drag.prototype.init = function() {
+            var self = this;
+            this.elem.onmousedown = function(ev) {
+                ev.preventDefault();
+                self.x = ev.clientX - this.offsetLeft;
+                self.y = ev.clientY - this.offsetTop;
+
+                document.onmousemove = function(ev) {
+                    var left = ev.clientX - self.x;
+                    var top = ev.clientY - self.y;
+
+                    if(left < 0) {
+                        left = 0;
+                    } else if(left > 784) {
+                        left = 784;
+                    }
+
+                    if(top < 0) {
+                        top = 0;
+                    } else if(top > 584) {
+                        top = 584;
+                    }
+
+                    self.elem.style.left = left + 'px';
+                    self.elem.style.top = top + 'px';
+                };
+
+                document.onmouseup = function() {
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+                    self.map.x = parseInt(self.elem.style.left) + 8;
+                    self.map.y = parseInt(self.elem.style.top) + 8;
+                };
+            };
+
+        };
+
+        new Drag(document.getElementById('start'), start);
+        new Drag(document.getElementById('end'), end);
+        init();
+
+        function drawStart(point) {
+            drawCircle(point, 'red');
+        }
+
+        function drawEnd(point) {
+            drawCircle(point, 'blue');
+        }
+
+        function drawCircle(point, color) {
+            var r = 8;
+            if(typeof point.r !== 'undefined') {
+                r = point.r;
+            }
+            ctx.beginPath();
+            ctx.fillStyle = color;
+            ctx.arc(point.x, point.y, r, 0, Math.PI * 2, false);
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawLine(args) {
+            for(var i = 0; i < args.length; i++) {
+                drawCircle(args[i], 'black');
+            }
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'black';
+            ctx.moveTo(args[0].x, args[0].y);
+            for(i = 1; i < args.length; i++) {
+                ctx.lineTo(args[i].x, args[i].y);
+            }
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function fillObstacles() {
+            ctx.clearRect(0, 0, oC.width, oC.height);
+            ctx.beginPath();
+            ctx.fillStyle = 'black';
+            ctx.moveTo(obstacles[0].x, obstacles[0].y);
+            for(i = 1; i < obstacles.length; i++) {
+                ctx.lineTo(obstacles[i].x, obstacles[i].y);
+            }
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function isInObstacles(start, end, obstacles) {
+            var index = 0;
+            var result;
+            for(var i = 0; i < obstacles.length - 1; i++) {
+                result = isLineCross(start, end, obstacles[i], obstacles[i + 1]);
+                if(result) {
+                    index++;
+                }
+            }
+
+            index = index % 2;
+
+            if(index === 0) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        function isInAABB(point, limit) {
+            if(point.x > limit.minX && point.x < limit.maxX && point.y > limit.minY && point.y < limit.maxY) {
+                return true;
+            }
+
+            return false;
+        }
+
+        function drawRole(start, end) {
+            if(!isDebug) {
+                return ;
+            }
+            drawStart(start);
+            drawEnd(end);
+            drawLine([start, end]);
+        }
+
+        function determinant(a, b, c, d) {
+            return (a * d - b * c);
+        }
+        
+        function isLineCross(a1, a2, b1, b2) {
+            /*if(globalTimes++ > 1000) {
+                throw 'to much times';
+            }*/
+            var delta = determinant(a2.x - a1.x, b1.x - b2.x, a2.y - a1.y, b1.y - b2.y);
+            if(delta <= (1e-6) && delta >= -(1e-6)) {
+                return false;
+            }
+            var namenda = determinant(b1.x - a1.x, b1.x - b2.x, b1.y - a1.y, b1.y - b2.y) / delta;
+            if(namenda > 1 || namenda < 0) {
+                return false;
+            }
+
+            var miu = determinant(a2.x - a1.x, b1.x - a1.x, a2.y - a1.y, b1.y - a1.y) / delta;
+            if(miu > 1 || miu < 0) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function distance(point, a, b) {
+            if(a.x < 0) {
+                a.x = 0;
+            }
+            if(a.y < 0) {
+                a.y = 0;
+            }
+
+            if(b.x < 0) {
+                b.x = 0;
+            }
+            if(b.y < 0) {
+                b.y = 0;
+            }
+            var dis1 = (a.x - point.x) * (a.x - point.x) + (a.y - point.y) * (a.y - point.y);
+            var dis2 = (b.x - point.x) * (b.x - point.x) + (b.y - point.y) * (b.y - point.y);
+
+            return dis1 + dis2;
+        }
+
+        function drawPath(args) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'blue';
+            ctx.moveTo(args[0].x, args[0].y);
+            for(var i = 1; i < args.length; i++) {
+                ctx.lineTo(args[i].x, args[i].y);
+            }
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function getPointOutside(args) {
+            var y = args[0].y;
+            var x = args[0].x;
+            for(var i = 1; i < args.length; i++) {
+                if(args[i].y > y) {
+                    y = args[i].y;
+                    x = args[i].x;
+                }
+            }
+
+            return {
+                x: x,
+                y: y + 10
+            };
+        }
+
+        function getAABB(args) {
+            var minX = args[0].x;
+            var maxX = args[0].x;
+            var minY = args[0].y;
+            var maxY = args[0].y;
+
+            for(var i = 1; i < args.length; i++) {
+                if(args[i].x < minX) {
+                    minX = args[i].x;
+                }
+                if(args[i].x > maxX) {
+                    maxX = args[i].x;
+                }
+                if(args[i].y < minY) {
+                    minY = args[i].y;
+                }
+                if(args[i].y > maxY) {
+                    maxY = args[i].y;
+                }
+            }
+            return {
+                minX: minX,
+                maxX: maxX,
+                minY: minY,
+                maxY: maxY
+            };
+        }
+    </script>
 </body>
 </html>

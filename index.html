@@ -87,6 +87,7 @@
         var obstacles = [];
 
         var globalPath = [];
+        var globalIndex = 0;
 
         var start = {
             x: 38,
@@ -378,7 +379,7 @@
         function determinant(a, b, c, d) {
             return (a * d - b * c);
         }
-        var globalIndex = 0;
+        
         function isLineCross(a1, a2, b1, b2) {
             if(globalIndex++ > 1000) {
                 throw 'to much times';
