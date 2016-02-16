@@ -95,14 +95,17 @@
         var start = {
             x: 38,
             y: 38,
-            index: 0
+            index: -1
         };
 
         var end = {
             x: 608,
             y: 408,
-            index: 1
+            index: -2
         };
+
+        var path = Object.create(null);
+        path.length = 0;
 
         function init() {
             initEvent();
@@ -133,6 +136,7 @@
                     x: left,
                     y: top,
                     r: 3,
+                    isObstacle: true,
                     index: globalObsIndex++
                 };
                 obstacles.push(tmp);
@@ -140,10 +144,9 @@
             };
 
             navigate.onclick = function() {
-                globalPath.push(start);
-                globalPath.push(end);
-
-                check();
+                outPoint = getPointOutside(obstacles);
+                done(start, {});
+                showPath();
             };
 
             debug.onclick = function() {
@@ -152,16 +155,10 @@
             };
         }
 
-        function check() {
+        function beforeCheck() {
             // 首先判断起点和终点是否在障碍物内部
             var outPoint = getPointOutside(obstacles);
-            var path = Object.create(null);
-            path.length = 0;
-            var aToPoints = Object.create(null);
-            var bToPoints = Object.create(null);
-            var tmp;
-            var tmpIndex;
-
+            
             if(isInObstacles(outPoint, start, obstacles)) {
                 alert('fuck');
                 return ;
@@ -170,92 +167,128 @@
                 alert('fuck');
                 return ;
             }
+        }
 
+        var aToPoints = [];
+        var bToPoints = [];
+        var globalPoints = Object.create(null);
+        var outPoint;
+        function findChild(p, obstacles, notPoint) {
+            p.childs = Object.create(null);
+
+            drawCircle(p, 'red');
             for(var i = 0; i < obstacles.length - 1; i++) {
                 tmp = obstacles[i];
                 tmpIndex = tmp.index;
-                var aDoor = true;
-                var bDoor = true;
+                var door = true;
+
+                if(notPoint[tmpIndex] || tmp.isEnd) {
+                    continue;
+                }
+
                 for(var j = 0; j < obstacles.length - 1; j++) {
-                    if(tmpIndex === obstacles[j].index || tmpIndex === obstacles[j + 1].index) {
-                        continue;
-                    }
-                    if(aDoor) {
-                        if(isLineCross(start, tmp, obstacles[j], obstacles[j + 1])) {
-                            aDoor = false;
+                    if(tmp.isObstacle) {
+                        if(tmp.index === obstacles[j].index || tmp.index === obstacles[j + 1].index) {
+                            continue;
                         }
                     }
-                    if(bDoor) {
-                        if(isLineCross(end, tmp, obstacles[j], obstacles[j + 1])) {
-                            bDoor = false;
+                    
+                    if(p.isObstacle) {
+                        if(p.index === obstacles[j].index || p.index === obstacles[j + 1].index) {
+                            continue;
                         }
                     }
-                    if(!aDoor && !bDoor) {
+
+                    if(isLineCross(p, tmp, obstacles[j], obstacles[j + 1])) {
+                        door = false;
+                    }
+
+                    if(!door) {
                         break;
                     }
                 }
+                if(door) {
+                    var mid = Object.create(null);
+                    mid.x = p.x + (tmp.x - p.x) / 2;
+                    mid.y = p.y + (tmp.y - p.y) / 2;
 
-                if(aDoor) {
-                    aToPoints[tmp.index] = tmp;
-                }
-                if(bDoor) {
-                    bToPoints[tmp.index] = tmp;
-                }
-            }
-
-            /*console.log(aToPoints);
-            console.log(bToPoints);*/
-
-            for(i in aToPoints) {
-                drawCircle(aToPoints[i], 'green');
-            }
-
-            for(i in bToPoints) {
-                drawCircle(bToPoints[i], 'yellow');
-            }
-
-            // TODO 这里的主计算点最好不在障碍的AABB内
-            for(var a in aToPoints) {
-                if(typeof bToPoints[a] !== 'undefined') { // 有相同点存在
-                    path[a] = [start, aToPoints[a], end];
-                    path.length++;
-                    drawPath(path[a]);
-                    delete aToPoints[a];
-                    delete bToPoints[a];
-                }
-            }
-            for(a in aToPoints) {
-                // 和b的直连点能否直连
-                for(var b in bToPoints) {
-                    var door = true;
-
-                    if((Math.abs(a - b) === 1) || (a == 0 && b == obstacles.length - 2)) {
-                        path[a + b] = [start, aToPoints[a], bToPoints[b], end];
-                        path.length++;
-                        continue;
-                    }
-                    for(var k = 0; k < obstacles.length - 1; k++) {
-                        if(isLineCross(aToPoints[a], bToPoints[b], obstacles[k], obstacles[k + 1])) {
-                            door = false;
-                            break;
+                    if(p.isObstacle && tmp.isObstacle) {
+                        var diff = Math.abs(tmp.index - p.index);
+                        if(diff === 1 || diff === obstacles.length - 2) {
+                            p.childs[tmpIndex] = JSON.parse(JSON.stringify(tmp));
+                            p.childs[tmpIndex].parent = p;
                         }
                     }
-                    if(door) {
-                        path[a + b] = [start, aToPoints[a], bToPoints[b], end];
-                        path.length++;
+
+                    if(isInObstacles(outPoint, mid, obstacles)) {
+                        continue;
                     }
+
+                    p.childs[tmpIndex] = JSON.parse(JSON.stringify(tmp));
+                    p.childs[tmpIndex].parent = p;
+                }
+            }
+        }
+
+        function lineStartEnd(a, b, obstacles) {
+            for(var i = 0; i < obstacles.length - 1; i++) {
+                if(a.isObstacle) {
+                    if(a.index === obstacles[i].index || a.index === obstacles[i + 1].index) {
+                        continue;
+                    }
+                }
+
+                if(b.isObstacle) {
+                    if(b.index === obstacles[i].index || b.index === obstacles[i + 1].index) {
+                        continue;
+                    }
+                }
+
+                if(isLineCross(a, b, obstacles[i], obstacles[i + 1])) {
+                    return false;
                 }
             }
 
-            if(path.length === 0) {
-                alert(1);
-            } else {
-                console.log(path);
-                for(var attr in path) {
-                    if(attr !== 'length') {
-                        drawPath(path[attr]);
-                    }
+            return true;
+        }
+
+        function done(start, notPoints) {
+            findChild(start, obstacles, notPoints);
+            if(compare(start.childs)) {
+                return ;
+            }
+            
+            start.isEnd = true;
+            for(var i in start.childs) {
+                done(start.childs[i], start.childs);
+            }
+        }
+
+        function compare(points) {
+            var door = false;
+            for(var i in points) {
+                if(lineStartEnd(points[i], end, obstacles)) {
+                    console.log('find a path');
+                    console.log(points[i]);
+                    globalPath.push(points[i]);
+                    door = true;
                 }
+            }
+            return door;
+        }
+
+        function showPath() {
+            for(var i = 0; i < globalPath.length; i++) {
+                var arr = [];
+                var tmp = globalPath[i];
+                arr.push(end);
+                arr.push(tmp);
+                while(tmp.parent) {
+                    arr.push(tmp.parent);
+                    tmp = tmp.parent;
+                }
+                arr.push(start);
+                drawPath(arr);
             }
         }
 
@@ -409,9 +442,6 @@
         }
         
         function isLineCross(a1, a2, b1, b2) {
-            /*if(globalTimes++ > 1000) {
-                throw 'to much times';
-            }*/
             var delta = determinant(a2.x - a1.x, b1.x - b2.x, a2.y - a1.y, b1.y - b2.y);
             if(delta <= (1e-6) && delta >= -(1e-6)) {
                 return false;
