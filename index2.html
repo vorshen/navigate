@@ -71,14 +71,12 @@
     <div class="buttons">
         <div id="draw" class="button">画障碍物</div>
         <div id="navigate" class="button">开始寻路</div>
-        <div id="debug" class="button">开启debug</div>
     </div>
 
     <script>
         var wrap = document.getElementById('wrap');
         var drawObs = document.getElementById('draw');
         var navigate = document.getElementById('navigate');
-        var debug = document.getElementById('debug');
         var oC = document.getElementById('c');
         var ctx = oC.getContext('2d');
         var offsetX = wrap.offsetLeft;
@@ -145,28 +143,24 @@
 
             navigate.onclick = function() {
                 outPoint = getPointOutside(obstacles);
+                beforeCheck();
                 done(start, {});
                 showPath();
-            };
-
-            debug.onclick = function() {
-                isDebug = true;
-                debug.className = 'active';
             };
         }
 
         function beforeCheck() {
-            // 首先判断起点和终点是否在障碍物内部
-            var outPoint = getPointOutside(obstacles);
-            
+            // 首先判断起点和终点是否在障碍物内部            
             if(isInObstacles(outPoint, start, obstacles)) {
                 alert('fuck');
-                return ;
+                return false;
             }
             if(isInObstacles(outPoint, end, obstacles)) {
                 alert('fuck');
-                return ;
+                return false;
             }
+
+            return true;
         }
 
         var aToPoints = [];

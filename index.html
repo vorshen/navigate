@@ -168,16 +168,16 @@
                 globalPath.push(start);
                 globalPath.push(end);
 
+                // 计算斜率
                 k = (end.y - start.y) / (end.x - start.x);
                 kk = -1  / k;
 
                 // 判断起点终点是否在障碍物的AABB内
                 limit = getAABB(obstacles);
+                // 矫正位置
                 var currStart = redressPoint(start, end, limit);
                 var currEnd = redressPoint(end, start, limit);
-                
-                // drawCircle(currStart, 'yellow');
-                // drawCircle(currEnd, 'yellow');
+
 
                 check(currStart, currEnd, obstacles);
                 drawPath(globalPath);
@@ -521,12 +521,7 @@
 
                 dis1 = distance(x, nextStart, nextEnd);
                 dis2 = distance(y, nextStart, nextEnd);
-                /*drawCircle(x, 'yellow');
-                drawCircle(y, 'pink');*/
-                console.log(dir);
-                console.log(x, y);
-                console.log(dis1, dis2);
-                console.log(changeX, changeY);
+
                 var symbolX;
                 var symbolY;
                 if(dis1 < dis2) {
@@ -579,7 +574,6 @@
                 tmp = redressPoint(globalPath[f.index + 1], f, limit);
                 check(f, tmp, obstacles);
             }
-
         }
 
         function distance(point, a, b) {
