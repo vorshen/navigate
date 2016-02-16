@@ -173,6 +173,8 @@
         var bToPoints = [];
         var globalPoints = Object.create(null);
         var outPoint;
+        var avoid = Object.create(null);
+
         function findChild(p, obstacles, notPoint) {
             p.childs = Object.create(null);
 
@@ -254,13 +256,15 @@
 
         function done(start, notPoints) {
             findChild(start, obstacles, notPoints);
-            if(compare(start.childs)) {
-                return ;
-            }
+            compare(start.childs)
             
-            start.isEnd = true;
+
+            obstacles[start.index] && (obstacles[start.index].isEnd = true);
+
             for(var i in start.childs) {
-                done(start.childs[i], start.childs);
+                if(!avoid[i]) {
+                    done(start.childs[i], start.childs);
+                }
             }
         }
 
@@ -271,6 +275,7 @@
                     console.log('find a path');
                     console.log(points[i]);
                     globalPath.push(points[i]);
+                    avoid[i] = true;
                     door = true;
                 }
             }
@@ -278,6 +283,7 @@
         }
 
         function showPath() {
+            var disArr = [];
             for(var i = 0; i < globalPath.length; i++) {
                 var arr = [];
                 var tmp = globalPath[i];
@@ -288,8 +294,25 @@
                     tmp = tmp.parent;
                 }
                 arr.push(start);
-                drawPath(arr);
+                disArr.push({
+                    distance: computeDistance(arr),
+                    path: arr
+                });
             }
+
+            disArr.sort(function(a, b) {
+                return a.distance - b.distance;
+            });
+            console.log(disArr);
+            drawPath(disArr[0].path);
+        }
+
+        function computeDistance(arr) {
+            var sum = 0;
+            for(var i = 1; i < arr.length; i++) {
+                sum += ((arr[i].x - arr[i-1].x)*(arr[i].x - arr[i-1].x) + (arr[i].y - arr[i-1].y)*(arr[i].y - arr[i-1].y));
+            }
+            return sum;
         }
 
         function drawObsDown() {
