@@ -143,9 +143,10 @@
 
             navigate.onclick = function() {
                 outPoint = getPointOutside(obstacles);
-                beforeCheck();
-                done(start, {});
-                showPath();
+                if(beforeCheck()) {
+                    done(start, {});
+                    showPath();
+                }
             };
         }
 
@@ -304,7 +305,7 @@
         function computeDistance(arr) {
             var sum = 0;
             for(var i = 1; i < arr.length; i++) {
-                sum += ((arr[i].x - arr[i-1].x)*(arr[i].x - arr[i-1].x) + (arr[i].y - arr[i-1].y)*(arr[i].y - arr[i-1].y));
+                sum += Math.sqrt((arr[i].x - arr[i-1].x)*(arr[i].x - arr[i-1].x) + (arr[i].y - arr[i-1].y)*(arr[i].y - arr[i-1].y));
             }
             return sum;
         }
